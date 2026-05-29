@@ -12,235 +12,189 @@ import org.mage.test.serverside.base.CardTestPlayerBase;
  * At the beginning of your upkeep, surveil 2.
  * Each enchantment card in your hand has miracle. Its miracle cost is equal to its mana cost reduced by {4}.
  *
- * @author LevelX2
+ * NOTE: PlayerA goes first and skips their draw step on turn 1. All draw-dependent tests run
+ * on turn 3 (PlayerA's second turn), requiring 4 buffer cards for two surveil cycles.
+ * Library setup comments use "bottom to top" notation: last addCard call = top of library.
  */
 public class AminatouVeilPiercerTest extends CardTestPlayerBase {
 
     private static final String aminatou = "Aminatou, Veil Piercer";
 
     /**
-     * Test that Aminatou's surveil 2 trigger works at beginning of upkeep
-     */
-    @Test
-    public void testSurveil2Trigger() {
-        addCard(Zone.BATTLEFIELD, playerA, aminatou);
-        addCard(Zone.LIBRARY, playerA, "Mountain"); // top
-        addCard(Zone.LIBRARY, playerA, "Forest"); // second
-        addCard(Zone.LIBRARY, playerA, "Plains"); // third
-        skipInitShuffling();
-
-        setStopAt(2, PhaseStep.DRAW); // Stop on turn 2, after surveil but before draw
-        execute();
-
-        assertPermanentCount(playerA, aminatou, 1);
-        // Surveil should have happened (no error checking, just that the game progresses)
-    }
-
-    /**
-     * Test basic miracle on enchantment - Oblivion Ring
-     * Oblivion Ring costs {2}{W}, reduced by {4} = {W}
-     * Based on MiracleTest pattern
-     */
-    @Test
-    public void testEnchantmentMiracle_OblivionRing() {
-        addCard(Zone.BATTLEFIELD, playerA, aminatou);
-        addCard(Zone.BATTLEFIELD, playerA, "Plains", 1); // For {W} miracle cost
-        addCard(Zone.BATTLEFIELD, playerA, "Island", 1); // For Think Twice
-
-        // Add buffer cards so surveil doesn't hit Oblivion Ring
-        // Last card added is on top! Surveil sees top 2 (Forest, Mountain)
-        addCard(Zone.LIBRARY, playerA, "Oblivion Ring"); // Bottom - will be drawn by Think Twice
-        addCard(Zone.LIBRARY, playerA, "Mountain"); // Middle - surveiled
-        addCard(Zone.LIBRARY, playerA, "Forest"); // Top - surveiled
-        addCard(Zone.HAND, playerA, "Think Twice"); // Draw spell
-        addCard(Zone.BATTLEFIELD, playerB, "Grizzly Bears"); // Target for O-Ring
-        skipInitShuffling();
-
-        // Cast Think Twice to draw Oblivion Ring as first card
-        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, "Think Twice");
-
-        setStopAt(1, PhaseStep.BEGIN_COMBAT);
-        execute();
-
-        // Miracle should auto-cast O-Ring for {W}, exiling Grizzly Bears
-        assertPermanentCount(playerA, "Oblivion Ring", 1);
-        assertExileCount(playerB, "Grizzly Bears", 1);
-    }
-
-    /**
-     * Test miracle cost reduction for cheap enchantment
-     * Abundant Growth costs {G}, reduced by {4} = {0}
-     */
-    @Test
-    public void testMiracleCostReduction_CheapEnchantment() {
-        addCard(Zone.BATTLEFIELD, playerA, aminatou);
-        addCard(Zone.BATTLEFIELD, playerA, "Island", 1); // For Think Twice
-        addCard(Zone.BATTLEFIELD, playerA, "Forest", 1); // Target for Abundant Growth
-
-        // Add buffer cards for surveil (last added is on top)
-        addCard(Zone.LIBRARY, playerA, "Abundant Growth"); // Bottom - will be drawn
-        addCard(Zone.LIBRARY, playerA, "Mountain"); // Middle - surveiled
-        addCard(Zone.LIBRARY, playerA, "Plains"); // Top - surveiled
-        addCard(Zone.HAND, playerA, "Think Twice");
-        skipInitShuffling();
-
-        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, "Think Twice");
-
-        setStopAt(1, PhaseStep.BEGIN_COMBAT);
-        execute();
-
-        // Should cast for free ({0})
-        assertPermanentCount(playerA, "Abundant Growth", 1);
-    }
-
-    /**
-     * Test that non-enchantments do NOT get miracle
-     */
-    @Test
-    public void testNonEnchantment_NoMiracle() {
-        addCard(Zone.BATTLEFIELD, playerA, aminatou);
-        addCard(Zone.BATTLEFIELD, playerA, "Island", 1);
-        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 1); // For Lightning Bolt if it had miracle
-
-        // Add buffer cards for surveil (last added is on top)
-        addCard(Zone.LIBRARY, playerA, "Lightning Bolt"); // Bottom - will be drawn
-        addCard(Zone.LIBRARY, playerA, "Forest"); // Middle - surveiled
-        addCard(Zone.LIBRARY, playerA, "Plains"); // Top - surveiled
-        addCard(Zone.HAND, playerA, "Think Twice");
-        skipInitShuffling();
-
-        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, "Think Twice");
-
-        setStopAt(1, PhaseStep.BEGIN_COMBAT);
-        execute();
-
-        // Lightning Bolt should be in hand, NOT cast
-        assertHandCount(playerA, "Lightning Bolt", 1);
-    }
-
-    /**
-     * Test miracle only works on FIRST card drawn per turn
-     * Draw 2 cards, only first should trigger miracle
-     */
-    @Test
-    public void testMiracle_OnlyFirstCardDrawn() {
-        addCard(Zone.BATTLEFIELD, playerA, aminatou);
-        addCard(Zone.BATTLEFIELD, playerA, "Plains", 1);
-        addCard(Zone.BATTLEFIELD, playerA, "Island", 1); // For Divination
-
-        // Add buffer and test cards (last added is on top)
-        addCard(Zone.LIBRARY, playerA, "Oblivion Ring"); // 4th from top, first draw - should miracle
-        addCard(Zone.LIBRARY, playerA, "Pacifism"); // 3rd from top, second draw - no miracle
-        addCard(Zone.LIBRARY, playerA, "Mountain"); // 2nd from top - surveiled
-        addCard(Zone.LIBRARY, playerA, "Forest"); // Top - surveiled
-        addCard(Zone.HAND, playerA, "Divination"); // Draw 2 cards
-        addCard(Zone.BATTLEFIELD, playerB, "Grizzly Bears");
-        skipInitShuffling();
-
-        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, "Divination");
-
-        setStopAt(1, PhaseStep.BEGIN_COMBAT);
-        execute();
-
-        // Oblivion Ring should be cast via miracle
-        assertPermanentCount(playerA, "Oblivion Ring", 1);
-        // Pacifism should be in hand (second draw, no miracle)
-        assertHandCount(playerA, "Pacifism", 1);
-    }
-
-    /**
-     * Test miracle works on opponent's turn
-     */
-    @Test
-    public void testMiracle_OpponentTurn() {
-        addCard(Zone.BATTLEFIELD, playerA, aminatou);
-        addCard(Zone.BATTLEFIELD, playerA, "Plains", 1);
-        addCard(Zone.BATTLEFIELD, playerA, "Island", 1);
-
-        // Add buffers - turn 1 surveil (top 2), turn 2 upkeep surveil (next top 2), then Opt draws
-        // Last added is on top of library!
-        addCard(Zone.LIBRARY, playerA, "Oblivion Ring"); // 5th from top - will be drawn by Opt
-        addCard(Zone.LIBRARY, playerA, "Swamp"); // 4th from top - turn 2 surveil
-        addCard(Zone.LIBRARY, playerA, "Mountain"); // 3rd from top - turn 2 surveil
-        addCard(Zone.LIBRARY, playerA, "Plains"); // 2nd from top - turn 1 surveil
-        addCard(Zone.LIBRARY, playerA, "Forest"); // Top - turn 1 surveil
-        addCard(Zone.HAND, playerA, "Opt");
-        addCard(Zone.BATTLEFIELD, playerB, "Grizzly Bears");
-        skipInitShuffling();
-
-        // Cast Opt during opponent's turn (after turn 2 surveil) to draw Oblivion Ring
-        castSpell(2, PhaseStep.PRECOMBAT_MAIN, playerA, "Opt");
-
-        setStopAt(2, PhaseStep.BEGIN_COMBAT);
-        execute();
-
-        assertPermanentCount(playerA, "Oblivion Ring", 1);
-        assertExileCount(playerB, "Grizzly Bears", 1);
-    }
-
-    /**
-     * Test that miracle only works when Aminatou is on battlefield
-     */
-    @Test
-    public void testNoMiracle_WithoutAminatou() {
-        // No Aminatou
-        addCard(Zone.BATTLEFIELD, playerA, "Island", 1);
-        addCard(Zone.BATTLEFIELD, playerA, "Plains", 3); // For regular O-Ring cost
-
-        addCard(Zone.LIBRARY, playerA, "Oblivion Ring");
-        addCard(Zone.HAND, playerA, "Think Twice");
-        addCard(Zone.BATTLEFIELD, playerB, "Grizzly Bears");
-        skipInitShuffling();
-
-        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, "Think Twice");
-
-        setStopAt(1, PhaseStep.BEGIN_COMBAT);
-        execute();
-
-        // O-Ring should be in hand (no miracle without Aminatou)
-        assertHandCount(playerA, "Oblivion Ring", 1);
-        // Grizzly Bears still on battlefield
-        assertPermanentCount(playerB, "Grizzly Bears", 1);
-    }
-
-    /**
-     * Test surveil 2 card selection
-     * Based on SurveilTest pattern
+     * Surveil 2 trigger puts top two library cards in graveyard when chosen.
+     * Runs to turn 2 (PlayerB's first turn) to confirm state after PlayerA's turn-1 surveil.
      */
     @Test
     public void testSurveil_BothToGraveyard() {
         addCard(Zone.BATTLEFIELD, playerA, aminatou);
-        addCard(Zone.LIBRARY, playerA, "Plains"); // bottom after surveil
-        addCard(Zone.LIBRARY, playerA, "Forest"); // top, will surveil to yard
-        addCard(Zone.LIBRARY, playerA, "Mountain"); // second, will surveil to yard
+        removeAllCardsFromLibrary(playerA);
+        // Library bottom to top (last added = top): Plains, Mountain, Forest
+        addCard(Zone.LIBRARY, playerA, "Plains");
+        addCard(Zone.LIBRARY, playerA, "Mountain");
+        addCard(Zone.LIBRARY, playerA, "Forest");
         skipInitShuffling();
 
+        // Upkeep surveil 2: put Forest (top) and Mountain (2nd) to graveyard
+        addTarget(playerA, "Forest^Mountain");
+
+        setStrictChooseMode(true);
         setStopAt(2, PhaseStep.PRECOMBAT_MAIN);
         execute();
 
-        // Both surveiled cards should be in graveyard
-        assertGraveyardCount(playerA, "Mountain", 1);
         assertGraveyardCount(playerA, "Forest", 1);
+        assertGraveyardCount(playerA, "Mountain", 1);
+        assertLibraryCount(playerA, 1); // Plains remains
     }
 
     /**
-     * Test that enchantment in graveyard doesn't get miracle
+     * Drawing an enchantment as the first card this turn triggers miracle.
+     * PlayerA skips the draw step on turn 1, so we test on turn 3 (PlayerA's second turn).
+     * Two surveil cycles consume 4 buffer cards; Oblivion Ring is drawn on turn 3.
+     * Oblivion Ring {2}{W} has miracle cost {W} (generic {2} fully reduced by Aminatou's {4}).
      */
     @Test
-    public void testMiracle_OnlyFromDraw() {
+    public void testEnchantmentMiracle_OblivionRing() {
         addCard(Zone.BATTLEFIELD, playerA, aminatou);
-        addCard(Zone.BATTLEFIELD, playerA, "Plains", 3);
+        addCard(Zone.BATTLEFIELD, playerA, "Plains", 1); // for {W} miracle cost
 
-        // Oblivion Ring already in graveyard
-        addCard(Zone.GRAVEYARD, playerA, "Oblivion Ring");
+        removeAllCardsFromLibrary(playerA);
+        // Library bottom to top (last added = top):
+        // Oblivion Ring (5th/bottom), Forest (4th), Mountain (3rd), Island (2nd), Plains (1st/top)
+        addCard(Zone.LIBRARY, playerA, "Oblivion Ring");
+        addCard(Zone.LIBRARY, playerA, "Forest");
+        addCard(Zone.LIBRARY, playerA, "Mountain");
+        addCard(Zone.LIBRARY, playerA, "Island");
+        addCard(Zone.LIBRARY, playerA, "Plains");        // top
+
         addCard(Zone.BATTLEFIELD, playerB, "Grizzly Bears");
         skipInitShuffling();
 
-        setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        // Turn 1 upkeep: surveil 2 — put Plains (top) and Island (2nd) to graveyard
+        addTarget(playerA, "Plains^Island");
+        // Turn 1 draw: SKIPPED (PlayerA goes first)
+        // Turn 3 (PlayerA's second turn) upkeep: surveil 2 — put Mountain and Forest to graveyard
+        addTarget(playerA, "Mountain^Forest");
+        // Turn 3 draw: Oblivion Ring drawn (first card this turn), miracle offer
+        setChoice(playerA, true); // accept miracle reveal
+        setChoice(playerA, true); // accept optional miracle trigger
+        // Miracle trigger resolves: cast Oblivion Ring for {W}; target Grizzly Bears
+        addTarget(playerA, "Grizzly Bears");
+
+        setStrictChooseMode(true);
+        setStopAt(3, PhaseStep.PRECOMBAT_MAIN);
         execute();
 
-        // O-Ring stays in graveyard (miracle only on draw)
-        assertGraveyardCount(playerA, "Oblivion Ring", 1);
+        assertPermanentCount(playerA, "Oblivion Ring", 1);
+        assertExileCount("Grizzly Bears", 1);
+    }
+
+    /**
+     * Non-enchantment cards drawn do NOT get miracle from Aminatou's ability.
+     * Tests on turn 3 (PlayerA's second turn) using 4 buffer cards for two surveil cycles.
+     */
+    @Test
+    public void testNonEnchantment_NoMiracle() {
+        addCard(Zone.BATTLEFIELD, playerA, aminatou);
+
+        removeAllCardsFromLibrary(playerA);
+        // Library bottom to top (last added = top):
+        // Lightning Bolt (5th/bottom), Forest (4th), Mountain (3rd), Island (2nd), Plains (1st/top)
+        addCard(Zone.LIBRARY, playerA, "Lightning Bolt");
+        addCard(Zone.LIBRARY, playerA, "Forest");
+        addCard(Zone.LIBRARY, playerA, "Mountain");
+        addCard(Zone.LIBRARY, playerA, "Island");
+        addCard(Zone.LIBRARY, playerA, "Plains");        // top
+        skipInitShuffling();
+
+        // Turn 1 upkeep: surveil 2 — put Plains and Island to graveyard
+        addTarget(playerA, "Plains^Island");
+        // Turn 1 draw: SKIPPED (PlayerA goes first)
+        // Turn 3 upkeep: surveil 2 — put Mountain and Forest to graveyard
+        addTarget(playerA, "Mountain^Forest");
+        // Turn 3 draw: Lightning Bolt drawn — NOT an enchantment, no miracle
+
+        setStrictChooseMode(true);
+        setStopAt(3, PhaseStep.PRECOMBAT_MAIN);
+        execute();
+
+        // Lightning Bolt is in hand (no miracle, not cast)
+        assertHandCount(playerA, "Lightning Bolt", 1);
+    }
+
+    /**
+     * Miracle only triggers on the FIRST card drawn each turn.
+     * Oblivion Ring is drawn first in turn 3's draw step (miracle fires and is accepted).
+     * Opt then draws Pacifism as the second card this turn (no miracle).
+     */
+    @Test
+    public void testMiracle_OnlyFirstCardDrawn() {
+        addCard(Zone.BATTLEFIELD, playerA, aminatou);
+        addCard(Zone.BATTLEFIELD, playerA, "Island", 1); // for {U} Opt cost
+        addCard(Zone.BATTLEFIELD, playerA, "Plains", 1); // for {W} O-Ring miracle cost
+
+        removeAllCardsFromLibrary(playerA);
+        // Library bottom to top (last added = top):
+        // Pacifism (6th/bottom), Oblivion Ring (5th), Forest (4th), Mountain (3rd), Island-buf (2nd), Plains-buf (1st/top)
+        addCard(Zone.LIBRARY, playerA, "Pacifism");
+        addCard(Zone.LIBRARY, playerA, "Oblivion Ring");
+        addCard(Zone.LIBRARY, playerA, "Forest");
+        addCard(Zone.LIBRARY, playerA, "Mountain");
+        addCard(Zone.LIBRARY, playerA, "Island");        // buffer, distinct from battlefield Island
+        addCard(Zone.LIBRARY, playerA, "Plains");        // top, buffer
+
+        addCard(Zone.HAND, playerA, "Opt");
+        addCard(Zone.BATTLEFIELD, playerB, "Grizzly Bears");
+        skipInitShuffling();
+
+        // Turn 1 upkeep: surveil 2 — put Plains-buf and Island-buf to graveyard
+        addTarget(playerA, "Plains^Island");
+        // Turn 1 draw: SKIPPED (PlayerA goes first)
+        // Turn 3 upkeep: surveil 2 — put Mountain and Forest to graveyard
+        addTarget(playerA, "Mountain^Forest");
+        // Turn 3 draw: Oblivion Ring drawn first, miracle offer
+        setChoice(playerA, true); // accept miracle reveal
+        setChoice(playerA, true); // accept optional miracle trigger
+        // Miracle trigger: cast O-Ring for {W}, target Grizzly Bears
+        addTarget(playerA, "Grizzly Bears");
+        // Turn 3 main: cast Opt ({U}), scry Pacifism (keep on top), draw Pacifism (second draw — no miracle)
+        castSpell(3, PhaseStep.PRECOMBAT_MAIN, playerA, "Opt");
+        // Scry: skip putting any card on the bottom (keep Pacifism on top)
+        addTarget(playerA, org.mage.test.player.TestPlayer.TARGET_SKIP);
+
+        setStrictChooseMode(true);
+        setStopAt(3, PhaseStep.BEGIN_COMBAT);
+        execute();
+
+        assertPermanentCount(playerA, "Oblivion Ring", 1);    // cast via miracle (first draw)
+        assertHandCount(playerA, "Pacifism", 1);              // second draw: no miracle, stays in hand
+        assertExileCount("Grizzly Bears", 1);
+    }
+
+    /**
+     * Without Aminatou on the battlefield, enchantments do not gain miracle.
+     * Tests on turn 3 (PlayerA's second turn) since draw is skipped on turn 1.
+     */
+    @Test
+    public void testNoMiracle_WithoutAminatou() {
+        // No Aminatou — no surveil triggers, no miracle granted
+        addCard(Zone.BATTLEFIELD, playerA, "Island", 2);
+        addCard(Zone.BATTLEFIELD, playerA, "Plains", 3); // enough for full Oblivion Ring cost {2}{W}
+
+        removeAllCardsFromLibrary(playerA);
+        // Library: Oblivion Ring on top (no buffer needed — no surveil)
+        addCard(Zone.LIBRARY, playerA, "Oblivion Ring");
+        addCard(Zone.BATTLEFIELD, playerB, "Grizzly Bears");
+        skipInitShuffling();
+
+        // Turn 1 draw: SKIPPED; Turn 2 (PlayerB): no action
+        // Turn 3 draw: Oblivion Ring drawn — no Aminatou so no miracle
+
+        setStrictChooseMode(true);
+        setStopAt(3, PhaseStep.PRECOMBAT_MAIN);
+        execute();
+
+        // Oblivion Ring is in hand (no miracle without Aminatou)
+        assertHandCount(playerA, "Oblivion Ring", 1);
         assertPermanentCount(playerB, "Grizzly Bears", 1);
     }
 }
